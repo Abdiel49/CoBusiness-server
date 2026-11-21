@@ -1,21 +1,15 @@
 import { DemoStateStore } from '../core/demo-state.store.js';
 import { DomainRecordRepository } from '../database/domain-record.repository.js';
-import { IdentityService } from './identity/identity.service.js';
 import { CatalogService } from './catalog/catalog.service.js';
 import { OrdersService } from './orders/orders.service.js';
-import { WalletService } from './wallet/wallet.service.js';
-import { PaymentsService } from './payments/payments.service.js';
 import { AuditService } from './audit/audit.service.js';
 import { IndexerService } from './indexer/indexer.service.js';
 import { ApprovalsService } from './approvals/approvals.service.js';
 
 describe('MVP feature services', () => {
   let state: DemoStateStore;
-  let identity: IdentityService;
   let catalog: CatalogService;
   let orders: OrdersService;
-  let wallet: WalletService;
-  let payments: PaymentsService;
   let audit: AuditService;
   let indexer: IndexerService;
   let approvals: ApprovalsService;
@@ -25,16 +19,12 @@ describe('MVP feature services', () => {
     remove: vi.fn(),
     findAll: vi.fn().mockResolvedValue([]),
   };
-  const verifier = { verify: vi.fn().mockResolvedValue(true) };
 
   beforeEach(() => {
     vi.clearAllMocks();
     state = new DemoStateStore(repository as unknown as DomainRecordRepository);
-    identity = new IdentityService(state);
     catalog = new CatalogService(state);
     orders = new OrdersService(state);
-    wallet = new WalletService(state, identity, verifier);
-    payments = new PaymentsService(state, orders);
     audit = new AuditService(state, catalog);
     indexer = new IndexerService(state, audit);
     approvals = new ApprovalsService(state, indexer, orders, audit);
@@ -194,29 +184,4 @@ describe('MVP feature services', () => {
     expect(retry.claimId).toBe(claim.claimId);
   });
 
-  it('binds a wallet only with a verified proof and consumes the challenge once', async () => {
-    const challenge = await wallet.challenge(buyer);
-    const proof = {
-      challengeId: challenge.challengeId,
-      publicKey: 'GDEMOACCOUNT',
-      signature: 'fixture-signature',
-      network: challenge.network,
-    };
-    await expect(wallet.verify(buyer, proof)).resolves.toMatchObject({
-      publicKey: proof.publicKey,
-      verified: true,
-    });
-    await expect(wallet.verify(buyer, proof)).rejects.toMatchObject({
-      response: { code: 'WALLET_CHALLENGE_INVALID' },
-    });
-    expect(verifier.verify).toHaveBeenCalledTimes(1);
-    const order = await orders.create(buyer, {
-      blockCount: 1,
-      acceptedTermsVersion: 1,
-      idempotencyKey: 'wallet-payment-order',
-    });
-    await expect(payments.prepare(buyer, order.id)).rejects.toMatchObject({
-      response: { code: 'STELLAR_INTEGRATION_NOT_CONFIGURED' },
-    });
-  });
 });

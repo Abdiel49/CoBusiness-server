@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiCookieAuth,
+  ApiOperation,
   ApiHeader,
   ApiProperty,
   ApiResponse,
@@ -27,6 +28,8 @@ import {
   Min,
   IsBoolean,
   IsOptional,
+  IsUUID,
+  Matches,
 } from 'class-validator';
 import { timingSafeEqual } from 'node:crypto';
 import { SessionAuthGuard } from './session-auth.guard.js';
@@ -49,9 +52,9 @@ export class CreateOrderDto {
   idempotencyKey!: string;
 }
 export class WalletVerifyDto {
-  @ApiProperty() @IsString() challengeId!: string;
-  @ApiProperty() @IsString() publicKey!: string;
-  @ApiProperty() @IsString() signature!: string;
+  @ApiProperty({ example: '194bb173-d304-4694-8474-a82a19af4daf' }) @IsUUID() challengeId!: string;
+  @ApiProperty({ description: 'Stellar G-address' }) @IsString() @Matches(/^G[A-Z2-7]{55}$/) publicKey!: string;
+  @ApiProperty({ description: 'SEP-53 signature, canonical base64' }) @IsString() @Matches(/^[A-Za-z0-9+/]{86}==$/) signature!: string;
   @ApiProperty({ example: 'Test SDF Network ; September 2015' })
   @IsString()
   network!: string;
@@ -175,18 +178,21 @@ export class MvpController {
   ) {
     return this.orders.get(request.actor, id);
   }
+  @ApiOperation({ summary: 'Create a one-time Testnet wallet challenge' })
   @Post('wallet/challenge')
   @UseGuards(SessionAuthGuard)
   @ApiCookieAuth('__Host-cobusiness_session')
   challenge(@Req() request: AuthenticatedRequest) {
     return this.wallet.challenge(request.actor);
   }
+  @ApiOperation({ summary: 'Verify and bind a Stellar wallet' })
   @Post('wallet/verify') @UseGuards(SessionAuthGuard) @ApiCookieAuth('__Host-cobusiness_session') verify(
     @Body() body: WalletVerifyDto,
     @Req() request: AuthenticatedRequest,
   ) {
     return this.wallet.verify(request.actor, body);
   }
+  @ApiOperation({ summary: 'Revoke the current wallet binding' })
   @Delete('wallet') @UseGuards(SessionAuthGuard) @ApiCookieAuth('__Host-cobusiness_session') revokeWallet(
     @Req() request: AuthenticatedRequest,
   ) {

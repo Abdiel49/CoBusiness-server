@@ -9,6 +9,7 @@ import {
 import { randomBytes, randomUUID } from 'node:crypto';
 import { StellarSorobanClient } from './stellar-soroban.client.js';
 import { Actor, DemoStateStore, Intent } from '../../core/demo-state.store.js';
+import { WalletBindingRepository } from '../../database/wallet-binding.repository.js';
 import { OrdersService } from '../orders/orders.service.js';
 
 @Injectable()
@@ -17,6 +18,7 @@ export class PaymentsService {
     private readonly state: DemoStateStore,
     private readonly orders: OrdersService,
     @Optional() private readonly stellar?: StellarSorobanClient,
+    @Optional() private readonly wallets?: WalletBindingRepository,
   ) {}
 
   async prepare(actor: Actor, orderId: string) {
@@ -28,7 +30,7 @@ export class PaymentsService {
           'Soroban funding is unavailable until a verified Testnet deployment is configured',
       });
     this.stellar.assertConfigured(order.termsHash);
-    if (!this.state.wallets.has(actor.id))
+    if (!await this.wallets?.find(actor.id))
       throw new ConflictException({
         code: 'WALLET_REQUIRED',
         message: 'Verified Testnet wallet required',
@@ -55,14 +57,15 @@ export class PaymentsService {
     order: ReturnType<OrdersService['get']>,
     actor: Actor,
   ) {
-    if (!this.stellar || !this.state.wallets.get(actor.id))
+    const payer = await this.wallets?.find(actor.id);
+    if (!this.stellar || !payer)
       throw new ServiceUnavailableException({
         code: 'STELLAR_INTEGRATION_NOT_CONFIGURED',
         message: 'Soroban funding is unavailable until a verified Testnet deployment is configured',
       });
     if (!intent.preparedXdr) {
       const prepared = await this.stellar.prepareContribution({
-        payer: this.state.wallets.get(actor.id)!,
+        payer: payer,
         orderRef: intent.orderRef,
         blockCount: order.blockCount,
       });
@@ -85,7 +88,7 @@ export class PaymentsService {
         signed: false,
         contractId: intent.contractId,
         params: {
-          payer: this.state.wallets.get(actor.id),
+          payer: payer,
           orderRef: intent.orderRef,
           blockCount: order.blockCount,
           acceptedTermsHash: intent.acceptedTermsHash,

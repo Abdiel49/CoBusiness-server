@@ -38,8 +38,8 @@ export class WalletBindingRepository {
         if (!rows.length) return 'invalid_challenge';
         if (!(await input.verify(rows[0].nonce))) return 'invalid_proof';
         const consumed: Array<{ id: string }> = await manager.query(
-          `UPDATE wallet_challenges SET consumed_at = clock_timestamp()
-           WHERE id = $1 AND expires_at > clock_timestamp() RETURNING id`,
+          `WITH updated AS (UPDATE wallet_challenges SET consumed_at = clock_timestamp()
+           WHERE id = $1 AND expires_at > clock_timestamp() RETURNING id) SELECT id FROM updated`,
           [input.challengeId],
         );
         if (!consumed.length) return 'invalid_challenge';
@@ -59,7 +59,7 @@ export class WalletBindingRepository {
 
   async revoke(userId: string): Promise<boolean> {
     const rows: Array<{ user_id: string }> = await this.dataSource.query(
-      'DELETE FROM wallet_bindings WHERE user_id = $1 RETURNING user_id',
+      'WITH deleted AS (DELETE FROM wallet_bindings WHERE user_id = $1 RETURNING user_id) SELECT user_id FROM deleted',
       [userId],
     );
     return rows.length > 0;
