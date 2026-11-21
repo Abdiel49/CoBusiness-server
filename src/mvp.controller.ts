@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Headers,
+  Req,
   Param,
   Post,
   UseGuards,
@@ -12,9 +13,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import {
-  ApiBearerAuth,
+  ApiCookieAuth,
   ApiHeader,
-  ApiOperation,
   ApiProperty,
   ApiResponse,
   ApiTags,
@@ -29,8 +29,8 @@ import {
   IsOptional,
 } from 'class-validator';
 import { timingSafeEqual } from 'node:crypto';
-import { Actor, DemoRole } from './core/demo-state.store.js';
-import { DemoAuthGuard } from './security.js';
+import { SessionAuthGuard } from './session-auth.guard.js';
+import type { AuthenticatedRequest } from './session-auth.guard.js';
 import { IdentityService } from './features/identity/identity.service.js';
 import { CatalogService } from './features/catalog/catalog.service.js';
 import { OrdersService } from './features/orders/orders.service.js';
@@ -40,13 +40,6 @@ import { IndexerService } from './features/indexer/indexer.service.js';
 import { ApprovalsService } from './features/approvals/approvals.service.js';
 import { AuditService } from './features/audit/audit.service.js';
 
-export class DemoSessionDto {
-  @ApiProperty({
-    enum: ['buyer-demo', 'operator-demo', 'cobusiness-demo', 'admin-demo'],
-  })
-  @IsString()
-  userId!: string;
-}
 export class CreateOrderDto {
   @ApiProperty({ minimum: 1, example: 2 }) @IsInt() @Min(1) blockCount!: number;
   @ApiProperty({ example: 1 }) @IsInt() @Min(1) acceptedTermsVersion!: number;
@@ -102,29 +95,10 @@ export class MvpController {
     private readonly auditService: AuditService,
   ) {}
 
-  @Post('auth/demo-session')
-  @ApiOperation({ summary: 'Start a fictional demo session' })
-  @ApiResponse({
-    status: 200,
-    description: 'Fictional bearer token for local demo use',
-    schema: {
-      example: {
-        data: {
-          accessToken: 'demo:buyer-demo:buyer',
-          actor: { id: 'buyer-demo', role: 'buyer' },
-        },
-        meta: { apiVersion: 'v1', timestamp: '2026-11-21T00:00:00.000Z' },
-      },
-    },
-  })
-  login(@Body() body: DemoSessionDto) {
-    return this.identity.login(body.userId);
-  }
-
-  @Get('me') @UseGuards(DemoAuthGuard) @ApiBearerAuth() me(
-    @Headers('authorization') authorization: string,
+  @Get('me') @UseGuards(SessionAuthGuard) @ApiCookieAuth('__Host-cobusiness_session') me(
+    @Req() request: AuthenticatedRequest,
   ) {
-    return this.identity.me(this.actor(authorization));
+    return this.identity.me(request.actor);
   }
   @Get('operators/:id') operator(@Param('id') id: string) {
     return this.catalog.operator(id);
@@ -139,8 +113,8 @@ export class MvpController {
     return this.catalog.lot(id);
   }
   @Post('lots/:id/orders')
-  @UseGuards(DemoAuthGuard)
-  @ApiBearerAuth()
+  @UseGuards(SessionAuthGuard)
+  @ApiCookieAuth('__Host-cobusiness_session')
   @ApiHeader({ name: 'Idempotency-Key', required: false })
   @ApiResponse({
     status: 201,
@@ -181,7 +155,7 @@ export class MvpController {
   createOrder(
     @Param('id') id: string,
     @Body() body: CreateOrderDto,
-    @Headers('authorization') authorization: string,
+    @Req() request: AuthenticatedRequest,
     @Headers('idempotency-key') key?: string,
   ) {
     if (id !== 'lot-demo-001')
@@ -189,59 +163,59 @@ export class MvpController {
         code: 'LOT_NOT_FOUND',
         message: 'Lot not found',
       });
-    return this.orders.create(this.actor(authorization), {
+    return this.orders.create(request.actor, {
       blockCount: body.blockCount,
       acceptedTermsVersion: body.acceptedTermsVersion,
       idempotencyKey: key ?? body.idempotencyKey,
     });
   }
-  @Get('orders/:id') @UseGuards(DemoAuthGuard) @ApiBearerAuth() order(
+  @Get('orders/:id') @UseGuards(SessionAuthGuard) @ApiCookieAuth('__Host-cobusiness_session') order(
     @Param('id') id: string,
-    @Headers('authorization') authorization: string,
+    @Req() request: AuthenticatedRequest,
   ) {
-    return this.orders.get(this.actor(authorization), id);
+    return this.orders.get(request.actor, id);
   }
   @Post('wallet/challenge')
-  @UseGuards(DemoAuthGuard)
-  @ApiBearerAuth()
-  challenge(@Headers('authorization') authorization: string) {
-    return this.wallet.challenge(this.actor(authorization));
+  @UseGuards(SessionAuthGuard)
+  @ApiCookieAuth('__Host-cobusiness_session')
+  challenge(@Req() request: AuthenticatedRequest) {
+    return this.wallet.challenge(request.actor);
   }
-  @Post('wallet/verify') @UseGuards(DemoAuthGuard) @ApiBearerAuth() verify(
+  @Post('wallet/verify') @UseGuards(SessionAuthGuard) @ApiCookieAuth('__Host-cobusiness_session') verify(
     @Body() body: WalletVerifyDto,
-    @Headers('authorization') authorization: string,
+    @Req() request: AuthenticatedRequest,
   ) {
-    return this.wallet.verify(this.actor(authorization), body);
+    return this.wallet.verify(request.actor, body);
   }
-  @Delete('wallet') @UseGuards(DemoAuthGuard) @ApiBearerAuth() revokeWallet(
-    @Headers('authorization') authorization: string,
+  @Delete('wallet') @UseGuards(SessionAuthGuard) @ApiCookieAuth('__Host-cobusiness_session') revokeWallet(
+    @Req() request: AuthenticatedRequest,
   ) {
-    return this.wallet.revoke(this.actor(authorization));
+    return this.wallet.revoke(request.actor);
   }
   @Post('orders/:id/payment-intents')
-  @UseGuards(DemoAuthGuard)
-  @ApiBearerAuth()
+  @UseGuards(SessionAuthGuard)
+  @ApiCookieAuth('__Host-cobusiness_session')
   intent(
     @Param('id') id: string,
-    @Headers('authorization') authorization: string,
+    @Req() request: AuthenticatedRequest,
   ) {
-    return this.payments.prepare(this.actor(authorization), id);
+    return this.payments.prepare(request.actor, id);
   }
   @Post('payments/:id/submission')
-  @UseGuards(DemoAuthGuard)
-  @ApiBearerAuth()
+  @UseGuards(SessionAuthGuard)
+  @ApiCookieAuth('__Host-cobusiness_session')
   submit(
     @Param('id') id: string,
     @Body() body: SubmitPaymentDto,
-    @Headers('authorization') authorization: string,
+    @Req() request: AuthenticatedRequest,
   ) {
-    return this.payments.submit(this.actor(authorization), id, body.txHash);
+    return this.payments.submit(request.actor, id, body.txHash);
   }
-  @Get('payments/:id') @UseGuards(DemoAuthGuard) @ApiBearerAuth() payment(
+  @Get('payments/:id') @UseGuards(SessionAuthGuard) @ApiCookieAuth('__Host-cobusiness_session') payment(
     @Param('id') id: string,
-    @Headers('authorization') authorization: string,
+    @Req() request: AuthenticatedRequest,
   ) {
-    return this.payments.get(this.actor(authorization), id);
+    return this.payments.get(request.actor, id);
   }
   @Get('lots/:id/escrow') escrow(@Param('id') id: string) {
     if (id !== 'lot-demo-001')
@@ -283,61 +257,61 @@ export class MvpController {
     return this.indexer.ingest(body);
   }
   @Post('lots/:id/operator-response')
-  @UseGuards(DemoAuthGuard)
-  @ApiBearerAuth()
+  @UseGuards(SessionAuthGuard)
+  @ApiCookieAuth('__Host-cobusiness_session')
   operatorResponse(
     @Param('id') id: string,
     @Body() body: OperatorResponseDto,
-    @Headers('authorization') authorization: string,
+    @Req() request: AuthenticatedRequest,
   ) {
     if (id !== 'lot-demo-001')
       throw new NotFoundException({
         code: 'LOT_NOT_FOUND',
         message: 'Lot not found',
       });
-    return this.approvals.respond(this.actor(authorization), body.decision);
+    return this.approvals.respond(request.actor, body.decision);
   }
   @Post('lots/:id/release-authorization')
-  @UseGuards(DemoAuthGuard)
-  @ApiBearerAuth()
+  @UseGuards(SessionAuthGuard)
+  @ApiCookieAuth('__Host-cobusiness_session')
   release(
     @Param('id') id: string,
-    @Headers('authorization') authorization: string,
+    @Req() request: AuthenticatedRequest,
   ) {
     if (id !== 'lot-demo-001')
       throw new NotFoundException({
         code: 'LOT_NOT_FOUND',
         message: 'Lot not found',
       });
-    return this.approvals.prepareRelease(this.actor(authorization));
+    return this.approvals.prepareRelease(request.actor);
   }
   @Post('lots/:id/refund-enablement')
-  @UseGuards(DemoAuthGuard)
-  @ApiBearerAuth()
+  @UseGuards(SessionAuthGuard)
+  @ApiCookieAuth('__Host-cobusiness_session')
   refundEnablement(
     @Param('id') id: string,
-    @Headers('authorization') authorization: string,
+    @Req() request: AuthenticatedRequest,
   ) {
     if (id !== 'lot-demo-001')
       throw new NotFoundException({
         code: 'LOT_NOT_FOUND',
         message: 'Lot not found',
       });
-    return this.approvals.prepareRefundEnablement(this.actor(authorization));
+    return this.approvals.prepareRefundEnablement(request.actor);
   }
   @Post('orders/:id/refund-claims')
-  @UseGuards(DemoAuthGuard)
-  @ApiBearerAuth()
+  @UseGuards(SessionAuthGuard)
+  @ApiCookieAuth('__Host-cobusiness_session')
   claim(
     @Param('id') id: string,
-    @Headers('authorization') authorization: string,
+    @Req() request: AuthenticatedRequest,
   ) {
-    return this.approvals.prepareClaim(this.actor(authorization), id);
+    return this.approvals.prepareClaim(request.actor, id);
   }
-  @Get('admin/audit') @UseGuards(DemoAuthGuard) @ApiBearerAuth() audit(
-    @Headers('authorization') authorization: string,
+  @Get('admin/audit') @UseGuards(SessionAuthGuard) @ApiCookieAuth('__Host-cobusiness_session') audit(
+    @Req() request: AuthenticatedRequest,
   ) {
-    if (this.actor(authorization).role !== 'admin')
+    if (request.actor.role !== 'admin')
       throw new ForbiddenException({
         code: 'FORBIDDEN',
         message: 'Admin role required',
@@ -345,9 +319,4 @@ export class MvpController {
     return this.auditService.summary();
   }
 
-  private actor(authorization?: string): Actor {
-    const token = authorization?.replace(/^Bearer\s+/i, '') ?? '';
-    const [, id, role] = token.split(':');
-    return { id, role: role as DemoRole };
-  }
 }

@@ -1,8 +1,6 @@
 import {
   ForbiddenException,
   Injectable,
-  NotFoundException,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 import { randomBytes, randomUUID } from 'node:crypto';
 import {
@@ -15,34 +13,9 @@ import {
 export class IdentityService {
   constructor(private readonly state: DemoStateStore) {}
 
-  login(userId: string): { accessToken: string; actor: Actor } {
-    if (process.env.NODE_ENV === 'production')
-      throw new ServiceUnavailableException({
-        code: 'DEMO_AUTH_DISABLED',
-        message: 'Demo authentication is disabled in production',
-      });
-    const roles: Record<string, DemoRole> = {
-      'buyer-demo': 'buyer',
-      'operator-demo': 'operator',
-      'cobusiness-demo': 'cobusiness',
-      'admin-demo': 'admin',
-    };
-    const role = roles[userId];
-    if (!role)
-      throw new NotFoundException({
-        code: 'DEMO_IDENTITY_NOT_FOUND',
-        message: 'Demo identity not found',
-      });
-    return {
-      accessToken: `demo:${userId}:${role}`,
-      actor: { id: userId, role },
-    };
-  }
-
   me(actor: Actor) {
     return {
       ...actor,
-      kyc: { status: 'verified', mode: 'simulated', documentsCollected: false },
       wallet: this.state.wallets.get(actor.id) ?? null,
     };
   }

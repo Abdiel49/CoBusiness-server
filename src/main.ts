@@ -8,6 +8,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     instrument: ObserveInstrument,
   });
+  if (process.env.AUTH_SUCCESS_REDIRECT) {
+    app.enableCors({ origin: new URL(process.env.AUTH_SUCCESS_REDIRECT).origin, credentials: true });
+  }
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(
     new ValidationPipe({
@@ -19,12 +22,12 @@ async function bootstrap() {
   app.useGlobalInterceptors(app.get(ApiEnvelopeInterceptor));
   app.useGlobalFilters(new ApiExceptionFilter());
   const openApi = new DocumentBuilder()
-    .setTitle('CoBusiness Demo API')
+    .setTitle('CoBusiness MVP API')
     .setDescription(
       'Versioned demo API. All identities, commercial data, and chain configuration are fictional. Payment and authorization invocations are unsigned.',
     )
     .setVersion('1.0.0')
-    .addBearerAuth()
+    .addCookieAuth('__Host-cobusiness_session')
     .addTag('MVP v1')
     .addTag('health')
     .build();
