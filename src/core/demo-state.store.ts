@@ -22,6 +22,12 @@ export type Intent = {
   orderId: string;
   status: 'prepared' | 'submitted' | 'confirmed' | 'failed';
   amountMinor: string;
+  orderRef: string;
+  preparedXdr?: string;
+  preparedTxHash?: string;
+  contractId?: string;
+  networkPassphrase?: string;
+  acceptedTermsHash?: string;
   txHash?: string;
   createdAt: string;
 };

@@ -8,6 +8,11 @@ import {
 @Injectable()
 export class DemoAuthGuard implements CanActivate {
   canActivate(context: ExecutionContext) {
+    if (process.env.NODE_ENV === 'production')
+      throw new UnauthorizedException({
+        code: 'AUTH_REQUIRED',
+        message: 'Demo authentication is disabled in production',
+      });
     const request = context
       .switchToHttp()
       .getRequest<{ headers: Record<string, string | undefined> }>();

@@ -2,6 +2,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { randomBytes, randomUUID } from 'node:crypto';
 import {
@@ -15,6 +16,11 @@ export class IdentityService {
   constructor(private readonly state: DemoStateStore) {}
 
   login(userId: string): { accessToken: string; actor: Actor } {
+    if (process.env.NODE_ENV === 'production')
+      throw new ServiceUnavailableException({
+        code: 'DEMO_AUTH_DISABLED',
+        message: 'Demo authentication is disabled in production',
+      });
     const roles: Record<string, DemoRole> = {
       'buyer-demo': 'buyer',
       'operator-demo': 'operator',

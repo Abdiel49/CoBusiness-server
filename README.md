@@ -22,7 +22,7 @@ Run `npm run build`, `npm run typecheck`, `npm run lint`, `npm test`, and `npm r
 
 ## Demo sessions
 
-`POST /api/v1/auth/demo-session` accepts a fictional user ID: `buyer-demo`, `operator-demo`, `cobusiness-demo`, or `admin-demo`. It returns a bearer token for local demonstrations. These predictable tokens are not authentication and must never be used outside a demo environment. KYC/KYB is explicitly simulated; no documents or real personal data are requested.
+`POST /api/v1/auth/demo-session` accepts a fictional user ID: `buyer-demo`, `operator-demo`, `cobusiness-demo`, or `admin-demo`. It returns a bearer token for local demonstrations. These predictable tokens are not authentication. Issuance and use are disabled when `NODE_ENV=production`; Google sign-in and real sessions are not implemented yet. KYC/KYB is explicitly simulated; no documents or real personal data are requested.
 
 Protected routes use the bearer token. Buyers may create whole-block orders and prepare their own payments. Operators can record a simulated commercial response. Only the CoBusiness demo role can prepare release/refund authorization. The API does not sign wallet requests or authorize funds on behalf of a user.
 

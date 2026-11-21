@@ -3,8 +3,11 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
+  Optional,
 } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { StellarSorobanClient } from './stellar-soroban.client.js';
 import { Actor, DemoStateStore, Intent } from '../../core/demo-state.store.js';
 import { OrdersService } from '../orders/orders.service.js';
 
@@ -13,10 +16,18 @@ export class PaymentsService {
   constructor(
     private readonly state: DemoStateStore,
     private readonly orders: OrdersService,
+    @Optional() private readonly stellar?: StellarSorobanClient,
   ) {}
 
   async prepare(actor: Actor, orderId: string) {
     const order = this.orders.get(actor, orderId);
+    if (!this.stellar)
+      throw new ServiceUnavailableException({
+        code: 'STELLAR_INTEGRATION_NOT_CONFIGURED',
+        message:
+          'Soroban funding is unavailable until a verified Testnet deployment is configured',
+      });
+    this.stellar.assertConfigured(order.termsHash);
     if (!this.state.wallets.has(actor.id))
       throw new ConflictException({
         code: 'WALLET_REQUIRED',
@@ -25,34 +36,59 @@ export class PaymentsService {
     const existing = [...this.state.intents.values()].find(
       (intent) => intent.orderId === orderId && intent.status !== 'failed',
     );
-    if (existing) return this.withInvocation(existing, order);
+    if (existing) return this.withInvocation(existing, order, actor);
     const intent: Intent = {
       id: randomUUID(),
       orderId,
       status: 'prepared',
       amountMinor: order.amountMinor,
+      orderRef: randomBytes(32).toString('hex'),
       createdAt: new Date().toISOString(),
     };
     this.state.intents.set(intent.id, intent);
     await this.state.saveRecord('intent', intent.id, intent);
-    return this.withInvocation(intent, order);
+    return this.withInvocation(intent, order, actor);
   }
 
-  private withInvocation(
+  private async withInvocation(
     intent: Intent,
     order: ReturnType<OrdersService['get']>,
+    actor: Actor,
   ) {
+    if (!this.stellar || !this.state.wallets.get(actor.id))
+      throw new ServiceUnavailableException({
+        code: 'STELLAR_INTEGRATION_NOT_CONFIGURED',
+        message: 'Soroban funding is unavailable until a verified Testnet deployment is configured',
+      });
+    if (!intent.preparedXdr) {
+      const prepared = await this.stellar.prepareContribution({
+        payer: this.state.wallets.get(actor.id)!,
+        orderRef: intent.orderRef,
+        blockCount: order.blockCount,
+      });
+      intent.preparedXdr = prepared.unsignedXdr;
+      intent.preparedTxHash = prepared.txHash;
+      intent.contractId = prepared.contractId;
+      intent.networkPassphrase = prepared.networkPassphrase;
+      intent.acceptedTermsHash = prepared.acceptedTermsHash;
+      await this.state.saveRecord('intent', intent.id, intent);
+    }
     return {
       ...intent,
+      unsignedXdr: intent.preparedXdr,
+      txHash: intent.preparedTxHash,
+      contractId: intent.contractId,
+      networkPassphrase: intent.networkPassphrase,
+      acceptedTermsHash: intent.acceptedTermsHash,
       invocation: {
-        method: 'fund',
+        method: 'contribute',
         signed: false,
-        contractId: 'UNCONFIGURED',
+        contractId: intent.contractId,
         params: {
-          lotId: order.lotId,
-          orderId: order.id,
-          amountMinor: order.amountMinor,
-          termsHash: order.termsHash,
+          payer: this.state.wallets.get(actor.id),
+          orderRef: intent.orderRef,
+          blockCount: order.blockCount,
+          acceptedTermsHash: intent.acceptedTermsHash,
         },
       },
     };
@@ -70,6 +106,11 @@ export class PaymentsService {
       throw new ForbiddenException({
         code: 'FORBIDDEN',
         message: 'Access denied',
+      });
+    if (intent.preparedTxHash && intent.preparedTxHash !== txHash)
+      throw new ConflictException({
+        code: 'PAYMENT_HASH_MISMATCH',
+        message: 'Submitted transaction hash does not match the prepared Soroban transaction',
       });
     if (intent.txHash) {
       if (intent.txHash !== txHash)

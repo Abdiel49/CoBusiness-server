@@ -215,22 +215,8 @@ describe('MVP feature services', () => {
       acceptedTermsVersion: 1,
       idempotencyKey: 'wallet-payment-order',
     });
-    const intent = await payments.prepare(buyer, order.id);
-    expect(intent).toMatchObject({
-      status: 'prepared',
-      invocation: { signed: false, contractId: 'UNCONFIGURED' },
+    await expect(payments.prepare(buyer, order.id)).rejects.toMatchObject({
+      response: { code: 'STELLAR_INTEGRATION_NOT_CONFIGURED' },
     });
-    const submitted = await payments.submit(
-      buyer,
-      intent.id,
-      'fixture-tx-reference',
-    );
-    const retry = await payments.submit(
-      buyer,
-      intent.id,
-      'fixture-tx-reference',
-    );
-    expect(submitted).toMatchObject({ status: 'submitted', funded: false });
-    expect(retry).toMatchObject({ status: 'submitted', funded: false });
   });
 });
