@@ -12,7 +12,7 @@ class CredentialsDto {
 }
 function checkOrigin(req: Request) {
   let origin: string | undefined;
-  try { origin = process.env.AUTH_SUCCESS_REDIRECT ? new URL(process.env.AUTH_SUCCESS_REDIRECT).origin : undefined; } catch { /* fail closed */ }
+  try { origin = process.env.CLIENT_ORIGIN ? new URL(process.env.CLIENT_ORIGIN).origin : undefined; } catch { /* fail closed */ }
   if (!origin || req.headers.origin !== origin) throw new ForbiddenException({ code: 'CSRF_REJECTED', message: 'Invalid request origin' });
 }
 @Controller('auth')

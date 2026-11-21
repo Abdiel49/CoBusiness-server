@@ -15,7 +15,7 @@ export class SessionAuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
-      const configured = process.env.AUTH_SUCCESS_REDIRECT;
+      const configured = process.env.CLIENT_ORIGIN;
       let origin: string | undefined;
       try { origin = configured ? new URL(configured).origin : undefined; } catch { /* fail closed */ }
       if (!origin || request.headers.origin !== origin) throw new ForbiddenException({ code: 'CSRF_REJECTED', message: 'Invalid request origin' });

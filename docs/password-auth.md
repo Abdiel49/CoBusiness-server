@@ -1,6 +1,6 @@
 # Email and password authentication
 
-Configure `AUTH_SUCCESS_REDIRECT` to the web application URL; its origin is required for state-changing requests. Apply migrations with `npm run migration:run`. HTTPS is required for Secure session cookies (localhost browsers may permit them).
+Configure `CLIENT_ORIGIN` to the web application URL; its origin is required for state-changing requests. Apply migrations with `npm run migration:run`. HTTPS is required for Secure session cookies (localhost browsers may permit them).
 
 `POST /api/v1/auth/register` and `POST /api/v1/auth/login` accept `email` and `password`; passwords must have 12–128 characters. Login sets a secure HttpOnly session cookie. `POST /api/v1/auth/logout` revokes that session. Send the configured Origin header and include cookies on requests. New accounts have the buyer role, controlled by the server.
 

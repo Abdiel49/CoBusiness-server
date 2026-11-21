@@ -14,8 +14,8 @@ describe('session guard', () => {
     expect(req).toMatchObject({ actor: { id: 'server-user', role: 'buyer' } });
   });
   it('rejects demo bearer tokens and cross-origin mutations', async () => {
-    const previous = process.env.AUTH_SUCCESS_REDIRECT;
-    process.env.AUTH_SUCCESS_REDIRECT = 'https://app.example/';
+    const previous = process.env.CLIENT_ORIGIN;
+    process.env.CLIENT_ORIGIN = 'https://app.example/';
     try {
       const guard = new SessionAuthGuard({ authenticate: vi.fn().mockResolvedValue(null) } as unknown as RealAuthService);
       const req = { method: 'GET', headers: { authorization: 'Bearer demo:admin-demo:admin' } };
@@ -23,6 +23,6 @@ describe('session guard', () => {
       await expect(guard.canActivate(ctx)).rejects.toThrow();
       req.method = 'POST';
       await expect(guard.canActivate(ctx)).rejects.toThrow();
-    } finally { if (previous === undefined) delete process.env.AUTH_SUCCESS_REDIRECT; else process.env.AUTH_SUCCESS_REDIRECT = previous; }
+    } finally { if (previous === undefined) delete process.env.CLIENT_ORIGIN; else process.env.CLIENT_ORIGIN = previous; }
   });
 });

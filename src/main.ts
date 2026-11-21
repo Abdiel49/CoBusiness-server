@@ -8,8 +8,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     instrument: ObserveInstrument,
   });
-  if (process.env.AUTH_SUCCESS_REDIRECT) {
-    app.enableCors({ origin: new URL(process.env.AUTH_SUCCESS_REDIRECT).origin, credentials: true });
+  if (process.env.CLIENT_ORIGIN) {
+    app.enableCors({ origin: new URL(process.env.CLIENT_ORIGIN).origin, credentials: true });
   }
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(
