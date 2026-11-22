@@ -1,5 +1,18 @@
 # AGENTS.md
 
+## Task workflow
+
+- Delegate each task to an available subagent unless the user instructs otherwise or higher-priority instructions prohibit delegation. Avoid recursive delegation when executing an assigned subtask. Give the subagent the task title, context, scope, functionality, dependencies, acceptance criteria, and applicable implementation standards.
+- The lead agent reviews the result and reports completed work, relevant checks and commits. If work fails or remains incomplete, explain the known cause and what is needed to finish; never present partial work as complete.
+- Create a commit for each completed feature when authorized. Inspect existing changes first and do not include unrelated work inadvertently.
+- Run checks appropriate to the change and update task-status documentation when progress changes.
+
+## NestJS implementation standards
+
+- Structure functionality in cohesive NestJS modules with explicit dependency injection and validate request DTOs or schemas at the application boundary.
+- Document new or modified controllers and endpoints in OpenAPI, including representative request and response examples.
+- Use TypeORM entities and migrations appropriately for persisted data, with database constraints and validation suited to the domain.
+
 ## NestJS
 
 This app's version of NestJS is likely newer than what you know. https://docs.nestjs.com/llms.txt indexes its documentation, with a markdown page per chapter.
