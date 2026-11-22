@@ -4,13 +4,16 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { Actor, DemoStateStore, Order } from '../../core/demo-state.store.js';
+import { OfferEscrowBindingRepository } from '../../database/offer-escrow-binding.repository.js';
+import { operationalOffer } from '../payments/operational-offer.js';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly state: DemoStateStore) {}
+  constructor(private readonly state: DemoStateStore, @Optional() private readonly bindings?: OfferEscrowBindingRepository) {}
 
   async create(
     actor: Actor,
@@ -18,6 +21,7 @@ export class OrdersService {
       blockCount: number;
       acceptedTermsVersion: number;
       idempotencyKey: string;
+      lotId?: string;
     },
   ) {
     this.requireBuyer(actor);
@@ -26,7 +30,7 @@ export class OrdersService {
     if (existingId) {
       const existing = this.state.orders.get(existingId)!;
       if (
-        existing.blockCount !== input.blockCount ||
+        existing.lotId !== (input.lotId ?? this.state.lot.id) || existing.blockCount !== input.blockCount ||
         existing.termsVersion !== input.acceptedTermsVersion
       )
         throw new ConflictException({
@@ -35,7 +39,10 @@ export class OrdersService {
         });
       return this.receipt(existing);
     }
-    const lot = this.state.lot;
+    const lotId = input.lotId ?? this.state.lot.id;
+    const binding = lotId === this.state.lot.id ? null : await this.bindings?.find(lotId);
+    if (lotId !== this.state.lot.id && !binding) throw new NotFoundException({ code: 'LOT_NOT_FOUND', message: 'Lot not found' });
+    const lot = binding ? operationalOffer(binding) : this.state.lot;
     if (!Number.isSafeInteger(input.blockCount) || input.blockCount <= 0)
       throw new BadRequestException({
         code: 'INVALID_BLOCK_COUNT',
@@ -70,6 +77,7 @@ export class OrdersService {
       ),
       termsVersion: lot.termsVersion,
       termsHash: lot.termsHash,
+      ...(binding ? { assetContractId: binding.asset } : {}),
       idempotencyKey: input.idempotencyKey,
       status: 'pending',
       createdAt: new Date().toISOString(),
@@ -108,7 +116,7 @@ export class OrdersService {
         id: `receipt-${order.id}`,
         units: order.units,
         amountMinor: order.amountMinor,
-        asset: this.state.product.asset.code,
+        asset: order.assetContractId ?? this.state.product.asset.code,
         paymentStatus: order.status,
         termsHash: order.termsHash,
       },

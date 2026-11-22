@@ -8,6 +8,7 @@ import { CreateWalletBindings1763680000001 } from './migrations/1763680000001-Cr
 import { CreateIdentity1763680000002 } from './migrations/1763680000002-CreateIdentity.js';
 
 import { PasswordIdentity1763680000003 } from './migrations/1763680000003-PasswordIdentity.js';
+import { OfferEscrowBindings1763680000004 } from './migrations/1763680000004-OfferEscrowBindings.js';
 
 const config = validateConfig(process.env);
 export default new DataSource({
@@ -18,6 +19,6 @@ export default new DataSource({
   password: config.DB_PASSWORD,
   database: config.DB_NAME,
   entities: [DomainRecord],
-  migrations: [CreateDomainRecords1763680000000, CreateWalletBindings1763680000001, CreateIdentity1763680000002, PasswordIdentity1763680000003],
+  migrations: [CreateDomainRecords1763680000000, CreateWalletBindings1763680000001, CreateIdentity1763680000002, PasswordIdentity1763680000003, OfferEscrowBindings1763680000004],
   synchronize: false,
 });

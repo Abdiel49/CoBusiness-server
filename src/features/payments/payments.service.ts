@@ -11,6 +11,8 @@ import { StellarSorobanClient } from './stellar-soroban.client.js';
 import { Actor, DemoStateStore, Intent } from '../../core/demo-state.store.js';
 import { WalletBindingRepository } from '../../database/wallet-binding.repository.js';
 import { OrdersService } from '../orders/orders.service.js';
+import { OfferEscrowBindingRepository } from '../../database/offer-escrow-binding.repository.js';
+import { StellarAttestationClient } from './stellar-attestation.client.js';
 
 @Injectable()
 export class PaymentsService {
@@ -19,6 +21,8 @@ export class PaymentsService {
     private readonly orders: OrdersService,
     @Optional() private readonly stellar?: StellarSorobanClient,
     @Optional() private readonly wallets?: WalletBindingRepository,
+    @Optional() private readonly bindings?: OfferEscrowBindingRepository,
+    @Optional() private readonly attestation?: StellarAttestationClient,
   ) {}
 
   async prepare(actor: Actor, orderId: string) {
@@ -29,7 +33,11 @@ export class PaymentsService {
         message:
           'Soroban funding is unavailable until a verified Testnet deployment is configured',
       });
-    this.stellar.assertConfigured(order.termsHash);
+    this.stellar.assertEnabled();
+    const binding = await this.bindings?.find(order.lotId);
+    if (!binding || !this.attestation || binding.termsHash !== order.termsHash)
+      throw new ServiceUnavailableException({ code: 'STELLAR_OFFER_NOT_VERIFIED', message: 'Offer deployment not verified' });
+    await this.attestation.verify(binding);
     if (!await this.wallets?.find(actor.id))
       throw new ConflictException({
         code: 'WALLET_REQUIRED',
@@ -38,7 +46,9 @@ export class PaymentsService {
     const existing = [...this.state.intents.values()].find(
       (intent) => intent.orderId === orderId && intent.status !== 'failed',
     );
-    if (existing) return this.withInvocation(existing, order, actor);
+    if (existing?.preparedXdr && (existing.contractId !== binding.contractId || existing.acceptedTermsHash !== binding.termsHash || existing.networkPassphrase !== binding.network))
+      throw new ServiceUnavailableException({ code: 'STELLAR_OFFER_NOT_VERIFIED', message: 'Saved transaction differs from verified offer' });
+    if (existing) return this.withInvocation(existing, order, actor, binding);
     const intent: Intent = {
       id: randomUUID(),
       orderId,
@@ -49,13 +59,14 @@ export class PaymentsService {
     };
     this.state.intents.set(intent.id, intent);
     await this.state.saveRecord('intent', intent.id, intent);
-    return this.withInvocation(intent, order, actor);
+    return this.withInvocation(intent, order, actor, binding);
   }
 
   private async withInvocation(
     intent: Intent,
     order: ReturnType<OrdersService['get']>,
     actor: Actor,
+    binding: { contractId: string; termsHash: string; network: string },
   ) {
     const payer = await this.wallets?.find(actor.id);
     if (!this.stellar || !payer)
@@ -68,6 +79,7 @@ export class PaymentsService {
         payer: payer,
         orderRef: intent.orderRef,
         blockCount: order.blockCount,
+        binding,
       });
       intent.preparedXdr = prepared.unsignedXdr;
       intent.preparedTxHash = prepared.txHash;

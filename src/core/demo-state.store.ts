@@ -13,6 +13,7 @@ export type Order = {
   amountMinor: string;
   termsVersion: number;
   termsHash: string;
+  assetContractId?: string;
   idempotencyKey: string;
   status: 'pending' | 'confirmed';
   createdAt: string;

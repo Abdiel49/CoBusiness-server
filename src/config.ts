@@ -9,8 +9,6 @@ export type AppConfig = {
   STELLAR_ENABLED: boolean;
   STELLAR_RPC_URL: string;
   STELLAR_NETWORK_PASSPHRASE: string;
-  STELLAR_ESCROW_CONTRACT_ID: string;
-  STELLAR_TERMS_HASH: string;
 };
 
 const stringValue = (value: unknown, fallback: string) =>
@@ -36,11 +34,6 @@ export function validateConfig(env: Record<string, unknown>): AppConfig {
       env.STELLAR_NETWORK_PASSPHRASE,
       'Test SDF Network ; September 2015',
     ),
-    STELLAR_ESCROW_CONTRACT_ID: stringValue(
-      env.STELLAR_ESCROW_CONTRACT_ID,
-      '',
-    ),
-    STELLAR_TERMS_HASH: stringValue(env.STELLAR_TERMS_HASH, ''),
   };
   if (!Number.isInteger(port) || port < 1 || port > 65535)
     throw new Error('PORT must be a valid TCP port');
@@ -49,10 +42,6 @@ export function validateConfig(env: Record<string, unknown>): AppConfig {
   if (!config.DB_PASSWORD && config.NODE_ENV === 'production')
     throw new Error('DB_PASSWORD is required in production');
   if (config.STELLAR_ENABLED) {
-    if (!/^C[A-Z2-7]{55}$/.test(config.STELLAR_ESCROW_CONTRACT_ID))
-      throw new Error('STELLAR_ESCROW_CONTRACT_ID must be a Stellar contract ID');
-    if (!/^[a-f0-9]{64}$/i.test(config.STELLAR_TERMS_HASH))
-      throw new Error('STELLAR_TERMS_HASH must be 32 bytes encoded as hex');
     if (config.STELLAR_NETWORK_PASSPHRASE !== 'Test SDF Network ; September 2015')
       throw new Error('This release supports Stellar Testnet only');
   }

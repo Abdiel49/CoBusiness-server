@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { DemoStateStore } from '../../core/demo-state.store.js';
+import { OfferEscrowBindingRepository } from '../../database/offer-escrow-binding.repository.js';
+import { operationalOffer } from '../payments/operational-offer.js';
 
 @Injectable()
 export class CatalogService {
-  constructor(private readonly state: DemoStateStore) {}
+  constructor(private readonly state: DemoStateStore, @Optional() private readonly bindings?: OfferEscrowBindingRepository) {}
 
   operator(id: string) {
     if (id !== this.state.operator.id)
@@ -23,7 +25,11 @@ export class CatalogService {
     return this.state.product;
   }
 
-  lot(id: string) {
+  async lot(id: string) {
+    if (id !== this.state.lot.id) {
+      const binding = await this.bindings?.find(id);
+      if (binding) return operationalOffer(binding);
+    }
     if (id !== this.state.lot.id)
       throw new NotFoundException({
         code: 'LOT_NOT_FOUND',
@@ -32,8 +38,8 @@ export class CatalogService {
     return this.lotView();
   }
 
-  lots() {
-    return [this.lotView()];
+  async lots() {
+    return [this.lotView(), ...(await this.bindings?.findAll() ?? []).map(operationalOffer)];
   }
 
   lotView() {

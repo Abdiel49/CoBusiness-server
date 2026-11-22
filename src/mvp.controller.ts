@@ -161,12 +161,8 @@ export class MvpController {
     @Req() request: AuthenticatedRequest,
     @Headers('idempotency-key') key?: string,
   ) {
-    if (id !== 'lot-demo-001')
-      throw new NotFoundException({
-        code: 'LOT_NOT_FOUND',
-        message: 'Lot not found',
-      });
     return this.orders.create(request.actor, {
+      lotId: id,
       blockCount: body.blockCount,
       acceptedTermsVersion: body.acceptedTermsVersion,
       idempotencyKey: key ?? body.idempotencyKey,
