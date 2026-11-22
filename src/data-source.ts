@@ -10,6 +10,8 @@ import { CreateIdentity1763680000002 } from './migrations/1763680000002-CreateId
 import { PasswordIdentity1763680000003 } from './migrations/1763680000003-PasswordIdentity.js';
 import { OfferEscrowBindings1763680000004 } from './migrations/1763680000004-OfferEscrowBindings.js';
 
+import { AtomicOrders1763680000005 } from './migrations/1763680000005-AtomicOrders.js';
+
 const config = validateConfig(process.env);
 export default new DataSource({
   type: 'postgres',
@@ -19,6 +21,6 @@ export default new DataSource({
   password: config.DB_PASSWORD,
   database: config.DB_NAME,
   entities: [DomainRecord],
-  migrations: [CreateDomainRecords1763680000000, CreateWalletBindings1763680000001, CreateIdentity1763680000002, PasswordIdentity1763680000003, OfferEscrowBindings1763680000004],
+  migrations: [CreateDomainRecords1763680000000, CreateWalletBindings1763680000001, CreateIdentity1763680000002, PasswordIdentity1763680000003, OfferEscrowBindings1763680000004, AtomicOrders1763680000005],
   synchronize: false,
 });

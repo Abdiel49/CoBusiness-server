@@ -1,11 +1,12 @@
 import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { DemoStateStore } from '../../core/demo-state.store.js';
 import { OfferEscrowBindingRepository } from '../../database/offer-escrow-binding.repository.js';
+import { ReservationRepository } from '../../database/reservation.repository.js';
 import { operationalOffer } from '../payments/operational-offer.js';
 
 @Injectable()
 export class CatalogService {
-  constructor(private readonly state: DemoStateStore, @Optional() private readonly bindings?: OfferEscrowBindingRepository) {}
+  constructor(private readonly state: DemoStateStore, @Optional() private readonly bindings?: OfferEscrowBindingRepository, @Optional() private readonly reservations?: ReservationRepository) {}
 
   operator(id: string) {
     if (id !== this.state.operator.id)
@@ -39,14 +40,12 @@ export class CatalogService {
   }
 
   async lots() {
-    return [this.lotView(), ...(await this.bindings?.findAll() ?? []).map(operationalOffer)];
+    return [await this.lotView(), ...(await this.bindings?.findAll() ?? []).map(operationalOffer)];
   }
 
-  lotView() {
+  async lotView() {
     const lot = this.state.lot;
-    const reservedBlocks = [...this.state.orders.values()]
-      .filter((order) => order.lotId === lot.id)
-      .reduce((total, order) => total + order.blockCount, 0);
+    const reservedBlocks = await this.reservations?.reserved(lot.id) ?? 0;
     return {
       ...lot,
       blocksAvailable: Math.max(0, lot.totalBlocks - reservedBlocks),

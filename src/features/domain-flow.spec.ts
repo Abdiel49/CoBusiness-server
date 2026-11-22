@@ -1,3 +1,5 @@
+import type { ReservationRepository } from '../database/reservation.repository.js';
+import { ConflictException } from '@nestjs/common';
 import { DemoStateStore } from '../core/demo-state.store.js';
 import { DomainRecordRepository } from '../database/domain-record.repository.js';
 import { CatalogService } from './catalog/catalog.service.js';
@@ -23,8 +25,19 @@ describe('MVP feature services', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     state = new DemoStateStore(repository as unknown as DomainRecordRepository);
-    catalog = new CatalogService(state);
-    orders = new OrdersService(state);
+    const reservations = {
+      findByKey: async (buyer: string, key: string) => [...state.orders.values()].find(o => o.buyerId === buyer && o.idempotencyKey === key) ?? null,
+      find: async (id: string) => state.orders.get(id) ?? null,
+      reserved: async (id: string) => [...state.orders.values()].filter(o => o.lotId === id).reduce((n, o) => n + o.blockCount, 0),
+      create: async (order: import('../core/demo-state.store.js').Order, capacity: number, deadline: string) => {
+        const used = [...state.orders.values()].filter(o => o.lotId === order.lotId).reduce((n, o) => n + o.blockCount, 0);
+        if (Date.now() >= Date.parse(deadline)) throw new ConflictException({ code: 'FUNDING_CLOSED' });
+        if (used + order.blockCount > capacity) throw new ConflictException({ code: 'LOT_CAPACITY_EXCEEDED' });
+        state.orders.set(order.id, order); return order;
+      },
+    } as unknown as ReservationRepository;
+    catalog = new CatalogService(state, undefined, reservations);
+    orders = new OrdersService(state, reservations);
     audit = new AuditService(state, catalog);
     indexer = new IndexerService(state, audit);
     approvals = new ApprovalsService(state, indexer, orders, audit);
@@ -44,8 +57,8 @@ describe('MVP feature services', () => {
     expect(first.amountMinor).toBe('25000000');
     expect(first.termsHash).toBe(state.lot.termsHash);
     expect(first.receipt.paymentStatus).toBe('pending');
-    expect(catalog.lotView().blocksAvailable).toBe(18);
-    expect(catalog.lotView().confirmedAmountMinor).toBe('0');
+    expect((await catalog.lotView()).blocksAvailable).toBe(18);
+    expect((await catalog.lotView()).confirmedAmountMinor).toBe('0');
   });
 
   it('rejects stale terms, key reuse with different data, and excess capacity', async () => {
@@ -89,7 +102,7 @@ describe('MVP feature services', () => {
       confirmed: false,
     };
     expect(await indexer.ingest(event)).toMatchObject({ accepted: false });
-    expect(catalog.lotView().confirmedAmountMinor).toBe('0');
+    expect((await catalog.lotView()).confirmedAmountMinor).toBe('0');
     expect(await indexer.ingest({ ...event, confirmed: true })).toMatchObject({
       accepted: true,
       duplicate: false,
@@ -98,7 +111,7 @@ describe('MVP feature services', () => {
       accepted: true,
       duplicate: true,
     });
-    expect(catalog.lotView().confirmedAmountMinor).toBe('12500000');
+    expect((await catalog.lotView()).confirmedAmountMinor).toBe('12500000');
   });
 
   it('requires operator response and CoBusiness role before preparing release', async () => {

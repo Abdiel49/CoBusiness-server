@@ -26,10 +26,10 @@ export class AuditService {
     await this.state.saveRecord('audit', entry.id, entry);
   }
 
-  summary() {
+  async summary() {
     return {
       demo: true,
-      lot: this.catalog.lotView(),
+      lot: await this.catalog.lotView(),
       actions: this.state.audit,
       syncErrors: this.state.syncErrors,
       discrepancies: [],

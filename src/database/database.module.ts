@@ -1,3 +1,4 @@
+import { ReservationRepository } from './reservation.repository.js';
 import { WalletBindingRepository } from './wallet-binding.repository.js';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -7,7 +8,7 @@ import { OfferEscrowBindingRepository } from './offer-escrow-binding.repository.
 
 @Module({
   imports: [TypeOrmModule.forFeature([DomainRecord])],
-  providers: [DomainRecordRepository, WalletBindingRepository, OfferEscrowBindingRepository],
-  exports: [DomainRecordRepository, WalletBindingRepository, OfferEscrowBindingRepository],
+  providers: [ReservationRepository, DomainRecordRepository, WalletBindingRepository, OfferEscrowBindingRepository],
+  exports: [ReservationRepository, DomainRecordRepository, WalletBindingRepository, OfferEscrowBindingRepository],
 })
 export class DatabaseModule {}

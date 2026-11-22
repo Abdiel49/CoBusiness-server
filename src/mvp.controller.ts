@@ -115,6 +115,7 @@ export class MvpController {
   @Get('lots/:id') lot(@Param('id') id: string) {
     return this.catalog.lot(id);
   }
+  @ApiOperation({ summary: 'Reserve blocks; no payment is collected' })
   @Post('lots/:id/orders')
   @UseGuards(SessionAuthGuard)
   @ApiCookieAuth('__Host-cobusiness_session')

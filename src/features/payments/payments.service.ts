@@ -26,7 +26,7 @@ export class PaymentsService {
   ) {}
 
   async prepare(actor: Actor, orderId: string) {
-    const order = this.orders.get(actor, orderId);
+    const order = await this.orders.get(actor, orderId);
     if (!this.stellar)
       throw new ServiceUnavailableException({
         code: 'STELLAR_INTEGRATION_NOT_CONFIGURED',
@@ -64,7 +64,7 @@ export class PaymentsService {
 
   private async withInvocation(
     intent: Intent,
-    order: ReturnType<OrdersService['get']>,
+    order: Awaited<ReturnType<OrdersService['get']>>,
     actor: Actor,
     binding: { contractId: string; termsHash: string; network: string },
   ) {
@@ -116,7 +116,7 @@ export class PaymentsService {
         code: 'PAYMENT_NOT_FOUND',
         message: 'Payment intent not found',
       });
-    const order = this.state.orders.get(intent.orderId)!;
+    const order = await this.orders.get(actor, intent.orderId);
     if (actor.id !== order.buyerId)
       throw new ForbiddenException({
         code: 'FORBIDDEN',
@@ -141,14 +141,14 @@ export class PaymentsService {
     return { ...intent, funded: false };
   }
 
-  get(actor: Actor, id: string) {
+  async get(actor: Actor, id: string) {
     const intent = this.state.intents.get(id);
     if (!intent)
       throw new NotFoundException({
         code: 'PAYMENT_NOT_FOUND',
         message: 'Payment intent not found',
       });
-    const order = this.state.orders.get(intent.orderId)!;
+    const order = await this.orders.get(actor, intent.orderId);
     if (
       actor.id !== order.buyerId &&
       !['admin', 'operator', 'cobusiness'].includes(actor.role)

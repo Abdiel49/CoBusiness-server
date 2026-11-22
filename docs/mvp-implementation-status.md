@@ -1,6 +1,6 @@
 # MVP server implementation status
 
-Updated: 2026-11-21. Scope: `MVP-SERVER-001` through `MVP-SERVER-012` only. Phase 2 remains out of scope.
+Updated: 2026-11-22. Escrow, payments and refunds are deferred to phase 2; reservations do not collect or confirm funds. Scope: `MVP-SERVER-001` through `MVP-SERVER-012` only. Phase 2 remains out of scope.
 
 `Complete in branch` means the server implementation and local verification for that task are present. It does not mean a PR has been reviewed or merged. `Pending` tasks retain their completed server-side pieces and list the work required before their acceptance criteria can be closed.
 
@@ -8,16 +8,16 @@ Updated: 2026-11-21. Scope: `MVP-SERVER-001` through `MVP-SERVER-012` only. Phas
 | --- | --- | --- | --- |
 | MVP-SERVER-001 | Pending | API v1, error/state contracts, OpenAPI JSON, selected demo policy, and integration version `cobusiness-mvp-v1` documented. | Document the remaining cancellation/threshold decisions; get cross-repository approval and confirm that Web, Server, and Web3 reference this exact version. |
 | MVP-SERVER-002 | Complete in branch | Validated config, PostgreSQL Compose service, TypeORM migration, readiness probe, CI workflow, and local migration checks are present. | CI run on the remote repository and PR review. |
-| MVP-SERVER-003 | Pending | Fictional demo sessions, roles, `/me`, and clearly simulated KYC exist; demo token issuance and acceptance are disabled when `NODE_ENV=production`. | Replace demo authentication with Google OIDC, persistent users and sessions, secure cookies, logout and server-assigned roles; remove simulated KYC from real-user responses and verify separate CoBusiness on-chain authorization. |
+| MVP-SERVER-003 | Implemented | Email/password identity and persistent sessions replace Google sign-in. | Validate the complete web flow. |
 | MVP-SERVER-004 | Complete in branch | Fictional operator/product data and read APIs are implemented and documented as simulated. | PR review. |
-| MVP-SERVER-005 | In progress | Administrative registration, immutable PostgreSQL bindings, canonical escrow-v2 XDR terms and RPC deployment attestation are implemented for separate operational offers. The demo lot remains fictional and cannot be bound. | Complete integration and concurrency tests, apply the migration, and validate registration and funding preparation against an appropriate fresh Testnet offer. |
-| MVP-SERVER-006 | Complete in branch | Whole-block orders, exact minor-unit totals, terms binding, idempotent sequential retries, capacity checks, and individual pending receipts are implemented and covered by unit tests. | PR review. The current order and idempotency records are saved in separate operations; atomic persistence across process failure or multiple server instances is not guaranteed. |
+| MVP-SERVER-005 | Deferred to phase 2 | Escrow binding implemented; full Testnet acceptance remains. | Resume with escrow integration. |
+| MVP-SERVER-006 | Complete in branch | PostgreSQL reservations atomically enforce per-offer capacity and buyer idempotency across instances; receipts remain pending. Existing orders are migrated. | Review and apply migration. |
 | MVP-SERVER-007 | In progress | PostgreSQL-backed challenge and exclusive ownership with SEP-53 verification, replay protection and revocation; concurrency covered by integration tests. | Validate interoperability with the chosen browser wallet before closing. |
-| MVP-SERVER-008 | Pending | Stellar SDK contribution simulation and persisted intents are implemented. Funding preparation is disabled until a verified per-offer deployment binding exists; a matching configured hash alone is insufficient. | Attest escrow-v2 and verify its terms, asset and immutable per-offer association against RPC before enabling funding. Connect the wallet signer/submission flow and pass producer/consumer Testnet tests. |
-| MVP-SERVER-009 | Pending | Confirmed fixture ingestion, canonical event deduplication, integer/cap validation, and in-memory escrow projections are implemented. A migration creates a checkpoint table, but no reader uses it. Event and projection writes are not transactional; lag is hard-coded to zero and health to true. | Implement the RPC reader and persistent cursor, atomic event/projection updates, finality/recovery, contract balance reconciliation, real sync health, and producer/consumer tests. |
-| MVP-SERVER-010 | Pending | Operator response, CoBusiness-only unsigned release preparation, refund preparation, and a document gated on a confirmed release event are implemented. | Verify event and authorization behavior against the deployed contract on Testnet. |
-| MVP-SERVER-011 | Pending | Refund eligibility, confirmed enablement-event state, repeatable unsigned claim preparation, and fixture-refund tracking are implemented. No claim is submitted or checked against a deployed contract. | Require a confirmed contribution for each claim, then verify cause, enablement, and individual claim behavior against the deployed contract on Testnet. |
-| MVP-SERVER-012 | Pending | Admin audit is read-only and returns event references; fixture ingestion has separate token protection. `syncErrors` and discrepancies are currently empty collections rather than computed telemetry. | Populate lag/error/discrepancy telemetry from the real indexer and verify production log sensitivity. |
+| MVP-SERVER-008 | Deferred to phase 2 | Payment preparation exists partially. | Complete escrow payment integration. |
+| MVP-SERVER-009 | Deferred to phase 2 | Fixture event ingestion exists. | Implement confirmed RPC indexing and reconciliation. |
+| MVP-SERVER-010 | Deferred to phase 2 | Partial release preparation exists. | Verify settlement against escrow. |
+| MVP-SERVER-011 | Deferred to phase 2 | Partial refund preparation exists. | Complete confirmed individual refund flow. |
+| MVP-SERVER-012 | Deferred to phase 2 | Fixture audit exists. | Add real chain reconciliation telemetry. |
 
 ## Architecture
 
@@ -69,8 +69,6 @@ The domain services own the rules for their feature. `DemoStateStore` owns share
 
 The implementation is on local branch `feature/mvp-server-mvp`. The approved plan targets `develop`, but the remote repository has no `origin/develop` branch and GitHub reports `main` as the default branch. No PR was opened against a different base without direction from the project owner.
 
-## Code review conclusion
+## Revised MVP scope
 
-The three tasks marked complete in this branch have matching local acceptance evidence: PostgreSQL bootstrap/migration/readiness (002), fictional catalog/operator reads (004), and whole-block order/retry/receipt behavior (006). Task 006's idempotency is reliable for sequential retries within the current single-process demo, but not transactionally guaranteed across a crash or multiple instances.
-
-The other nine are correctly marked pending against the backlog's full acceptance criteria. Their server-side skeletons and fixtures are present, but they still lack cross-repository contract approval, a live wallet verifier, the approved deployed ABI, a production-capable event reader/reconciler, Testnet authorization/refund evidence, or real indexer telemetry. The fixture paths do not satisfy the backlog's explicit cross-repository/Testnet integration criteria.
+Reservations are not payments. MVP-INT-001, MVP-SERVER-005, MVP-SERVER-008 through MVP-SERVER-012, and their escrow funding, release, refund and reconciliation journeys in MVP-WEB and MVP-INT-002 are deferred to phase 2. The current MVP integration covers identity, catalog, and durable reservations only; wallet interoperability remains independently pending. Historical financial routes are not acceptance evidence for this MVP.

@@ -9,11 +9,12 @@ import {
 import { randomUUID } from 'node:crypto';
 import { Actor, DemoStateStore, Order } from '../../core/demo-state.store.js';
 import { OfferEscrowBindingRepository } from '../../database/offer-escrow-binding.repository.js';
+import { ReservationRepository } from '../../database/reservation.repository.js';
 import { operationalOffer } from '../payments/operational-offer.js';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly state: DemoStateStore, @Optional() private readonly bindings?: OfferEscrowBindingRepository) {}
+  constructor(private readonly state: DemoStateStore, private readonly reservations: ReservationRepository, @Optional() private readonly bindings?: OfferEscrowBindingRepository) {}
 
   async create(
     actor: Actor,
@@ -25,19 +26,13 @@ export class OrdersService {
     },
   ) {
     this.requireBuyer(actor);
-    const key = `${actor.id}:${input.idempotencyKey}`;
-    const existingId = this.state.idempotency.get(key);
-    if (existingId) {
-      const existing = this.state.orders.get(existingId)!;
-      if (
-        existing.lotId !== (input.lotId ?? this.state.lot.id) || existing.blockCount !== input.blockCount ||
-        existing.termsVersion !== input.acceptedTermsVersion
-      )
-        throw new ConflictException({
-          code: 'IDEMPOTENCY_KEY_REUSED',
-          message: 'Idempotency key was already used with different order data',
-        });
-      return this.receipt(existing);
+    if (typeof input.idempotencyKey !== 'string' || !input.idempotencyKey.trim() || input.idempotencyKey.length > 160)
+      throw new BadRequestException({ code: 'INVALID_IDEMPOTENCY_KEY', message: 'Idempotency key must contain 1 to 160 characters' });
+    const prior = await this.reservations.findByKey(actor.id, input.idempotencyKey);
+    if (prior) {
+      if (prior.lotId !== (input.lotId ?? this.state.lot.id) || prior.blockCount !== input.blockCount || prior.termsVersion !== input.acceptedTermsVersion)
+        throw new ConflictException({ code: 'IDEMPOTENCY_KEY_REUSED', message: 'Idempotency key was already used with different order data' });
+      return this.receipt(prior);
     }
     const lotId = input.lotId ?? this.state.lot.id;
     const binding = lotId === this.state.lot.id ? null : await this.bindings?.find(lotId);
@@ -52,19 +47,6 @@ export class OrdersService {
       throw new ConflictException({
         code: 'TERMS_VERSION_MISMATCH',
         message: 'Accepted terms are no longer current',
-      });
-    const reserved = [...this.state.orders.values()]
-      .filter((order) => order.lotId === lot.id)
-      .reduce((total, order) => total + order.blockCount, 0);
-    if (input.blockCount > lot.totalBlocks - reserved)
-      throw new ConflictException({
-        code: 'LOT_CAPACITY_EXCEEDED',
-        message: 'Requested blocks exceed available lot capacity',
-      });
-    if (Date.now() >= Date.parse(lot.fundingDeadline))
-      throw new ConflictException({
-        code: 'FUNDING_CLOSED',
-        message: 'Lot funding deadline has passed',
       });
     const order: Order = {
       id: randomUUID(),
@@ -82,30 +64,15 @@ export class OrdersService {
       status: 'pending',
       createdAt: new Date().toISOString(),
     };
-    this.state.orders.set(order.id, order);
-    this.state.idempotency.set(key, order.id);
-    await this.state.saveRecord('order', order.id, order);
-    await this.state.saveRecord('idempotency', key, { orderId: order.id });
-    return this.receipt(order);
+    const result = await this.reservations.create(order, lot.totalBlocks, lot.fundingDeadline);
+    return this.receipt(result);
   }
 
-  get(actor: Actor, id: string) {
-    const order = this.state.orders.get(id);
-    if (!order)
-      throw new NotFoundException({
-        code: 'ORDER_NOT_FOUND',
-        message: 'Order not found',
-      });
-    if (
-      actor.role !== 'admin' &&
-      order.buyerId !== actor.id &&
-      actor.role !== 'operator' &&
-      actor.role !== 'cobusiness'
-    )
-      throw new ForbiddenException({
-        code: 'FORBIDDEN',
-        message: 'Access denied',
-      });
+  async get(actor: Actor, id: string) {
+    const order = await this.reservations.find(id);
+    if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
+    if (actor.role !== 'admin' && order.buyerId !== actor.id && actor.role !== 'operator' && actor.role !== 'cobusiness')
+      throw new ForbiddenException({ code: 'FORBIDDEN', message: 'Access denied' });
     return this.receipt(order);
   }
 

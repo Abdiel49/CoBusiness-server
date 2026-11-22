@@ -104,7 +104,7 @@ export class ApprovalsService {
 
   async prepareClaim(actor: Actor, orderId: string) {
     this.require(actor, 'buyer');
-    const receipt = this.orders.get(actor, orderId);
+    const receipt = await this.orders.get(actor, orderId);
     const lot = this.state.lot;
     if (!lot.refundEnabled)
       throw new ConflictException({
