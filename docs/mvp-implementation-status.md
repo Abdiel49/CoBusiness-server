@@ -42,7 +42,8 @@ flowchart TD
   AUD --> CAT
   ID --> STATE[DemoStateStore]
   CAT --> STATE
-  ORD --> STATE
+  ORD --> RES[ReservationRepository]
+  RES --> DB
   WAL --> STATE
   PAY --> STATE
   IDX --> STATE
@@ -52,7 +53,7 @@ flowchart TD
   REPO --> DB[(PostgreSQL / TypeORM)]
 ```
 
-The domain services own the rules for their feature. `DemoStateStore` owns shared in-process records; `DomainRecordRepository` owns database access. There are no service-to-controller or circular module dependencies. The shared record table is an MVP persistence boundary; replacing it with normalized domain tables remains a production-hardening task.
+The domain services own the rules for their feature. Reservations use PostgreSQL directly as their authority; `DemoStateStore` owns the remaining shared demo records; `DomainRecordRepository` owns database access. There are no service-to-controller or circular module dependencies. The shared record table is an MVP persistence boundary; replacing it with normalized domain tables remains a production-hardening task.
 
 ## Verification performed
 
